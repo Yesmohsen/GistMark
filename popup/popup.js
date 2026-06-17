@@ -264,7 +264,7 @@ function simplifyNode(node) {
 }
 
 async function restoreFromGist() {
-  if (!confirm('This will restore bookmarks from your Gist into a new folder under Other Bookmarks. Continue?')) return
+  if (!confirm('This will restore bookmarks from your Gist into a new folder. Continue?')) return
 
   $('restoreBtn').disabled = true
   $('restoreBtn').textContent = 'Restoring...'
@@ -294,12 +294,15 @@ async function restoreFromGist() {
     if (!rootFolders.length) throw new Error('No bookmarks found in Gist')
 
     const roots = await chrome.bookmarks.getTree()
-    const otherBookmarks = roots[0].children.find(c => c.title === 'Other Bookmarks')
-    if (!otherBookmarks) throw new Error('Could not find Other Bookmarks folder')
+    const rootNode = roots[0]
+    const otherBookmarks = rootNode.children
+      ? rootNode.children.find(c => c.title === 'Other Bookmarks' || c.title === 'Other Bookmarks Folders' || c.id === '2')
+      : null
+    const parentId = otherBookmarks ? otherBookmarks.id : rootNode.id
 
     const date = new Date().toLocaleDateString().replace(/\//g, '-')
     const folder = await chrome.bookmarks.create({
-      parentId: otherBookmarks.id,
+      parentId,
       title: `GistMark Restore (${date})`,
     })
 
