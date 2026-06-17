@@ -181,15 +181,21 @@ async function doBackup() {
       throw new Error(err.message || `HTTP ${res.status}`)
     }
 
-    // Verify backup was written correctly by reading it back
+    // Verify backup was written correctly by reading it back via raw_url
     const check = await fetch(`https://api.github.com/gists/${gistId}`, {
       headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' },
     })
     if (check.ok) {
       const gist = await check.json()
       const saved = gist.files['GistMark-bookmarks.json']
-      if (saved && saved.content) {
-        try { JSON.parse(saved.content) } catch { throw new Error('Backup corrupted on GitHub — try again') }
+      if (saved && saved.raw_url) {
+        const rawRes = await fetch(saved.raw_url, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (rawRes.ok) {
+          const rawText = await rawRes.text()
+          try { JSON.parse(rawText) } catch { throw new Error('Backup corrupted on GitHub — try again') }
+        }
       }
     }
     return
@@ -211,10 +217,16 @@ async function doBackup() {
 
   const gist = await res.json()
 
-  // Verify backup
+  // Verify backup via raw_url
   const gistContent = gist.files['GistMark-bookmarks.json']
-  if (gistContent && gistContent.content) {
-    try { JSON.parse(gistContent.content) } catch { throw new Error('Backup corrupted on GitHub — try again') }
+  if (gistContent && gistContent.raw_url) {
+    const rawRes = await fetch(gistContent.raw_url, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (rawRes.ok) {
+      const rawText = await rawRes.text()
+      try { JSON.parse(rawText) } catch { throw new Error('Backup corrupted on GitHub — try again') }
+    }
   }
 
   state.gistId = gist.id
@@ -262,14 +274,15 @@ async function restoreFromGist() {
     const file = gist.files['GistMark-bookmarks.json']
     if (!file) throw new Error('GistMark-bookmarks.json not found in Gist')
 
-    let raw = file.content
-    // Try the raw download URL if content is empty (GitHub API truncates large files)
-    if (!raw || raw.length < 100) {
+    // Always prefer raw_url — GitHub API truncates content for large files
+    let raw
+    if (file.raw_url) {
       const rawRes = await fetch(file.raw_url, {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (rawRes.ok) raw = await rawRes.text()
     }
+    if (!raw) raw = file.content
     const data = JSON.parse(raw)
     const rootFolders = Array.isArray(data.bookmarks) ? data.bookmarks : []
     if (!rootFolders.length) throw new Error('No bookmarks found in Gist')
