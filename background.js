@@ -122,6 +122,12 @@ async function performRestore(token, gistId, onProgress) {
 
   const roots = await chrome.bookmarks.getTree()
   const rootNode = roots[0]
+  const rootChildren = rootNode.children || []
+  let parent = rootChildren.find(c => c.title === 'Other Bookmarks' || c.title === 'Other Bookmarks Folders' || c.id === '2')
+  if (!parent) parent = rootChildren.find(c => c.title === 'Bookmarks Bar' || c.id === '1')
+  if (!parent) parent = rootChildren.find(c => c.title === 'Mobile Bookmarks' || c.id === '3')
+  if (!parent && rootChildren.length) parent = rootChildren[0]
+  if (!parent) throw new Error('No writable bookmark root folder found')
 
   const nameMap = { 'ToolbarFolder': 'Bookmarks Bar', 'MenuFolder': 'Other Bookmarks', 'MobileFolder': 'Mobile Bookmarks' }
   const total = rootFolders.reduce((s, f) => s + countLeaves(f), 0)
@@ -131,7 +137,7 @@ async function performRestore(token, gistId, onProgress) {
   }
 
   const results = await Promise.all(rootFolders.map(node =>
-    createCompactNode(node, rootNode.id, () => { restored++; report() }, nameMap)
+    createCompactNode(node, parent.id, () => { restored++; report() }, nameMap)
   ))
 
   restored = results.reduce((a, b) => a + b, 0)
