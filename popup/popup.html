@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <span class="logo">GM</span>
+      <h1>GISTMARK</h1>
+      <span class="tagline">GIST IT</span>
+    </header>
+
+    <section id="settings">
+      <div class="field">
+        <label for="token">Gist Token</label>
+        <div class="input-row">
+          <input type="password" id="token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" spellcheck="false">
+          <button id="toggleToken" class="icon-btn" title="Toggle visibility">&#x1F441;</button>
+        </div>
+        <p class="hint">Your token stays on your device. <a href="https://github.com/settings/tokens" target="_blank">Create one</a> with <code>gist</code> scope.</p>
+      </div>
+
+      <div class="field row">
+        <div>
+          <label for="autoBackup">Auto Backup</label>
+          <p class="hint">Backup to Gist when bookmarks change</p>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="autoBackup">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="btn-group">
+        <button id="backupNow" class="btn primary" disabled>Backup NOW</button>
+        <button id="restoreBtn" class="btn secondary" disabled>Restore from Gist</button>
+      </div>
+    </section>
+
+    <section id="stats">
+      <div class="section-header">
+        <h2>Chrome Bookmarks</h2>
+      </div>
+      <div id="statsContent" class="stats-grid">
+        <div class="stat">
+          <span class="stat-value" id="totalBookmarks">—</span>
+          <span class="stat-label">Bookmarks</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value" id="totalFolders">—</span>
+          <span class="stat-label">Folders</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value" id="lastBackup">—</span>
+          <span class="stat-label">Last Backup</span>
+        </div>
+      </div>
+      <details id="treeDetails">
+        <summary>View tree</summary>
+        <div id="bookmarkTree"></div>
+      </details>
+    </section>
+
+    <div id="status"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
