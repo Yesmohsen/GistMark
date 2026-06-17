@@ -181,23 +181,25 @@ async function doBackup() {
       throw new Error(err.message || `HTTP ${res.status}`)
     }
 
-    // Verify backup was written correctly by reading it back via raw_url
-    const check = await fetch(`https://api.github.com/gists/${gistId}`, {
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' },
-    })
-    if (check.ok) {
-      const gist = await check.json()
-      const saved = gist.files['GistMark-bookmarks.json']
-      if (saved && saved.raw_url) {
-        const rawRes = await fetch(saved.raw_url, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (rawRes.ok) {
-          const rawText = await rawRes.text()
-          try { JSON.parse(rawText) } catch { throw new Error('Backup corrupted on GitHub — try again') }
+    // Non-fatal verification: check the gist was stored correctly
+    try {
+      const check = await fetch(`https://api.github.com/gists/${gistId}`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' },
+      })
+      if (check.ok) {
+        const gist = await check.json()
+        const saved = gist.files['GistMark-bookmarks.json']
+        if (saved && saved.raw_url) {
+          const rawRes = await fetch(saved.raw_url, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          if (rawRes.ok) JSON.parse(await rawRes.text())
         }
       }
+    } catch (e) {
+      console.warn('GistMark: backup verification failed', e)
     }
+
     return
   }
 
@@ -217,15 +219,19 @@ async function doBackup() {
 
   const gist = await res.json()
 
-  // Verify backup via raw_url
+    // Verify backup via raw_url (non-fatal — just warn on failure)
   const gistContent = gist.files['GistMark-bookmarks.json']
   if (gistContent && gistContent.raw_url) {
-    const rawRes = await fetch(gistContent.raw_url, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (rawRes.ok) {
-      const rawText = await rawRes.text()
-      try { JSON.parse(rawText) } catch { throw new Error('Backup corrupted on GitHub — try again') }
+    try {
+      const rawRes = await fetch(gistContent.raw_url, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (rawRes.ok) {
+        const rawText = await rawRes.text()
+        JSON.parse(rawText)
+      }
+    } catch (e) {
+      console.warn('GistMark: backup verification failed', e)
     }
   }
 
