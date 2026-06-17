@@ -12,6 +12,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .catch(err => sendResponse({ ok: false, error: err.message }))
     return true
   }
+  if (msg.type === 'RESTORE_FROM_GIST') {
+    performRestore(msg.token, msg.gistId, (count, total) => {
+      chrome.runtime.sendMessage({ type: 'RESTORE_PROGRESS', count, total }).catch(() => {})
+    })
+      .then(result => sendResponse({ ok: true, restored: result }))
+      .catch(err => sendResponse({ ok: false, error: err.message }))
+    return true
+  }
 })
 
 function scheduleBackup(delayMs) {
@@ -88,6 +96,88 @@ async function performBackup() {
   const gist = await res.json()
   await chrome.storage.sync.set({ gistId: gist.id })
   await chrome.storage.local.set({ lastBackupAt: Date.now() })
+}
+
+async function performRestore(token, gistId, onProgress) {
+  const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' },
+  })
+  if (!res.ok) throw new Error(`Failed to fetch Gist: ${res.status}`)
+
+  const gist = await res.json()
+  const file = gist.files['GistMark-bookmarks.json']
+  if (!file) throw new Error('GistMark-bookmarks.json not found in Gist')
+
+  let raw
+  if (file.raw_url) {
+    const rawRes = await fetch(file.raw_url, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (rawRes.ok) raw = await rawRes.text()
+  }
+  if (!raw) raw = file.content
+  const data = JSON.parse(raw)
+  const rootFolders = Array.isArray(data.bookmarks) ? data.bookmarks : []
+  if (!rootFolders.length) throw new Error('No bookmarks found in Gist')
+
+  const roots = await chrome.bookmarks.getTree()
+  const rootNode = roots[0]
+  const otherBookmarks = rootNode.children
+    ? rootNode.children.find(c => c.title === 'Other Bookmarks' || c.title === 'Other Bookmarks Folders' || c.id === '2')
+    : null
+  const parentId = otherBookmarks ? otherBookmarks.id : rootNode.id
+
+  const date = new Date().toLocaleDateString().replace(/\//g, '-')
+  const folder = await chrome.bookmarks.create({
+    parentId,
+    title: `GistMark Restore (${date})`,
+  })
+
+  const total = rootFolders.reduce((s, f) => s + countLeaves(f), 0)
+  let restored = 0
+  const report = () => {
+    if (restored % 100 === 0 || restored === total) onProgress(restored, total)
+  }
+
+  const results = await Promise.all(rootFolders.map(node =>
+    createCompactNode(node, folder.id, () => { restored++; report() })
+  ))
+
+  restored = results.reduce((a, b) => a + b, 0)
+  onProgress(restored, total)
+  return restored
+}
+
+function countLeaves(node) {
+  if (node.url) return 1
+  if (!node.children) return 0
+  return node.children.reduce((s, c) => s + countLeaves(c), 0)
+}
+
+async function createCompactNode(node, parentId, onCreated) {
+  if (node.url) {
+    try {
+      await chrome.bookmarks.create({ parentId, title: node.title || '', url: node.url })
+      onCreated()
+      return 1
+    } catch (e) {
+      if (e.message.includes('URL_INVALID')) {
+        await chrome.bookmarks.create({ parentId, title: node.title || '', url: 'https://example.com' })
+        onCreated()
+        return 1
+      }
+      return 0
+    }
+  }
+  if (!node.children || !node.children.length) return 0
+  const f = await chrome.bookmarks.create({ parentId, title: node.title || '' })
+  let count = 0
+  for (let i = 0; i < node.children.length; i += 20) {
+    const batch = node.children.slice(i, i + 20)
+    const results = await Promise.all(batch.map(c => createCompactNode(c, f.id, onCreated)))
+    count += results.reduce((a, b) => a + b, 0)
+  }
+  return count
 }
 
 async function recoverPendingBackup() {

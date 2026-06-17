@@ -268,83 +268,29 @@ async function restoreFromGist() {
 
   $('restoreBtn').disabled = true
   $('restoreBtn').textContent = 'Restoring...'
+  $('lastBackup').textContent = 'Starting restore...'
 
   try {
     const { token, gistId } = await chrome.storage.sync.get(['token', 'gistId'])
-    const res = await fetch(`https://api.github.com/gists/${gistId}`, {
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' },
-    })
-    if (!res.ok) throw new Error(`Failed to fetch Gist: ${res.status}`)
 
-    const gist = await res.json()
-    const file = gist.files['GistMark-bookmarks.json']
-    if (!file) throw new Error('GistMark-bookmarks.json not found in Gist')
+    const result = await chrome.runtime.sendMessage({ type: 'RESTORE_FROM_GIST', token, gistId })
+    if (!result.ok) throw new Error(result.error)
 
-    // Always prefer raw_url — GitHub API truncates content for large files
-    let raw
-    if (file.raw_url) {
-      const rawRes = await fetch(file.raw_url, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (rawRes.ok) raw = await rawRes.text()
-    }
-    if (!raw) raw = file.content
-    const data = JSON.parse(raw)
-    const rootFolders = Array.isArray(data.bookmarks) ? data.bookmarks : []
-    if (!rootFolders.length) throw new Error('No bookmarks found in Gist')
-
-    const roots = await chrome.bookmarks.getTree()
-    const rootNode = roots[0]
-    const otherBookmarks = rootNode.children
-      ? rootNode.children.find(c => c.title === 'Other Bookmarks' || c.title === 'Other Bookmarks Folders' || c.id === '2')
-      : null
-    const parentId = otherBookmarks ? otherBookmarks.id : rootNode.id
-
-    const date = new Date().toLocaleDateString().replace(/\//g, '-')
-    const folder = await chrome.bookmarks.create({
-      parentId,
-      title: `GistMark Restore (${date})`,
-    })
-
-    let restored = 0
-    for (const node of rootFolders) {
-      restored += await createCompact(node, folder.id)
-    }
-
-    showStatus(`Restored ${restored} bookmarks into "${folder.title}"`, 'success')
+    showStatus(`Restored ${result.restored} bookmarks`, 'success')
+    $('lastBackup').textContent = `Restored ${result.restored} bookmarks`
   } catch (err) {
-    const hint = err.message.includes('JSON') ? ' The backup file in your Gist is corrupted. Do a fresh Backup NOW first, then try Restore again.' : ''
-    showStatus(`Restore failed: ${err.message}${hint}`, 'error')
+    showStatus(`Restore failed: ${err.message}`, 'error')
   } finally {
     $('restoreBtn').disabled = !state.token || !state.gistId
     $('restoreBtn').textContent = 'Restore from Gist'
   }
 }
 
-async function createCompact(node, parentId) {
-  if (node.url) {
-    try {
-      await chrome.bookmarks.create({ parentId, title: node.title || '', url: node.url })
-      return 1
-    } catch (e) {
-      if (e.message.includes('URL_INVALID')) {
-        await chrome.bookmarks.create({ parentId, title: node.title || '', url: 'https://example.com' })
-        return 1
-      }
-      return 0
-    }
+chrome.runtime.onMessage.addListener(msg => {
+  if (msg.type === 'RESTORE_PROGRESS') {
+    $('lastBackup').textContent = `Restoring... ${msg.count}/${msg.total}`
   }
-  if (!node.children || !node.children.length) return 0
-  const f = await chrome.bookmarks.create({ parentId, title: node.title || '' })
-  let count = 0
-  for (let i = 0; i < node.children.length; i += 5) {
-    const batch = node.children.slice(i, i + 5)
-    const results = await Promise.all(batch.map(c => createCompact(c, f.id)))
-    count += results.reduce((a, b) => a + b, 0)
-    if (i % 100 === 0) await new Promise(r => setTimeout(r, 10))
-  }
-  return count
-}
+})
 
 function showStatus(msg, type = 'info') {
   const el = $('status')
