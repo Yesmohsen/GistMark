@@ -54,6 +54,7 @@ async function performBackup() {
   const tree = await chrome.bookmarks.getTree()
   const data = compactBookmarks(tree)
   const body = JSON.stringify(data)
+  try { JSON.parse(body) } catch (e) { console.error('GistMark: JSON serialization failed'); return }
   const files = { 'GistMark-bookmarks.json': { content: body } }
 
   if (gistId) {

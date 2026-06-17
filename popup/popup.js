@@ -159,6 +159,10 @@ async function doBackup() {
   const tree = await chrome.bookmarks.getTree()
   const data = compactBookmarks(tree)
   const body = JSON.stringify(data)
+
+  // Validate JSON is well-formed before sending
+  try { JSON.parse(body) } catch (e) { throw new Error('Failed to serialize bookmarks') }
+
   const files = { 'GistMark-bookmarks.json': { content: body } }
 
   if (gistId) {
@@ -176,7 +180,19 @@ async function doBackup() {
       const err = await res.json().catch(() => ({}))
       throw new Error(err.message || `HTTP ${res.status}`)
     }
-    return await res.json()
+
+    // Verify backup was written correctly by reading it back
+    const check = await fetch(`https://api.github.com/gists/${gistId}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' },
+    })
+    if (check.ok) {
+      const gist = await check.json()
+      const saved = gist.files['GistMark-bookmarks.json']
+      if (saved && saved.content) {
+        try { JSON.parse(saved.content) } catch { throw new Error('Backup corrupted on GitHub — try again') }
+      }
+    }
+    return
   }
 
   const res = await fetch('https://api.github.com/gists', {
@@ -194,6 +210,13 @@ async function doBackup() {
   }
 
   const gist = await res.json()
+
+  // Verify backup
+  const gistContent = gist.files['GistMark-bookmarks.json']
+  if (gistContent && gistContent.content) {
+    try { JSON.parse(gistContent.content) } catch { throw new Error('Backup corrupted on GitHub — try again') }
+  }
+
   state.gistId = gist.id
   await chrome.storage.sync.set({ gistId: gist.id })
   return gist
@@ -239,7 +262,15 @@ async function restoreFromGist() {
     const file = gist.files['GistMark-bookmarks.json']
     if (!file) throw new Error('GistMark-bookmarks.json not found in Gist')
 
-    const data = JSON.parse(file.content)
+    let raw = file.content
+    // Try the raw download URL if content is empty (GitHub API truncates large files)
+    if (!raw || raw.length < 100) {
+      const rawRes = await fetch(file.raw_url, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (rawRes.ok) raw = await rawRes.text()
+    }
+    const data = JSON.parse(raw)
     const rootFolders = Array.isArray(data.bookmarks) ? data.bookmarks : []
     if (!rootFolders.length) throw new Error('No bookmarks found in Gist')
 
@@ -260,7 +291,8 @@ async function restoreFromGist() {
 
     showStatus(`Restored ${restored} bookmarks into "${folder.title}"`, 'success')
   } catch (err) {
-    showStatus(`Restore failed: ${err.message}`, 'error')
+    const hint = err.message.includes('JSON') ? ' The backup file in your Gist is corrupted. Do a fresh Backup NOW first, then try Restore again.' : ''
+    showStatus(`Restore failed: ${err.message}${hint}`, 'error')
   } finally {
     $('restoreBtn').disabled = !state.token || !state.gistId
     $('restoreBtn').textContent = 'Restore from Gist'
