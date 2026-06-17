@@ -122,17 +122,8 @@ async function performRestore(token, gistId, onProgress) {
 
   const roots = await chrome.bookmarks.getTree()
   const rootNode = roots[0]
-  const otherBookmarks = rootNode.children
-    ? rootNode.children.find(c => c.title === 'Other Bookmarks' || c.title === 'Other Bookmarks Folders' || c.id === '2')
-    : null
-  const parentId = otherBookmarks ? otherBookmarks.id : rootNode.id
 
-  const date = new Date().toLocaleDateString().replace(/\//g, '-')
-  const folder = await chrome.bookmarks.create({
-    parentId,
-    title: `GistMark Restore (${date})`,
-  })
-
+  const nameMap = { 'ToolbarFolder': 'Bookmarks Bar', 'MenuFolder': 'Other Bookmarks', 'MobileFolder': 'Mobile Bookmarks' }
   const total = rootFolders.reduce((s, f) => s + countLeaves(f), 0)
   let restored = 0
   const report = () => {
@@ -140,7 +131,7 @@ async function performRestore(token, gistId, onProgress) {
   }
 
   const results = await Promise.all(rootFolders.map(node =>
-    createCompactNode(node, folder.id, () => { restored++; report() })
+    createCompactNode(node, rootNode.id, () => { restored++; report() }, nameMap)
   ))
 
   restored = results.reduce((a, b) => a + b, 0)
@@ -154,7 +145,7 @@ function countLeaves(node) {
   return node.children.reduce((s, c) => s + countLeaves(c), 0)
 }
 
-async function createCompactNode(node, parentId, onCreated) {
+async function createCompactNode(node, parentId, onCreated, nameMap = {}) {
   if (node.url) {
     try {
       await chrome.bookmarks.create({ parentId, title: node.title || '', url: node.url })
@@ -170,7 +161,8 @@ async function createCompactNode(node, parentId, onCreated) {
     }
   }
   if (!node.children || !node.children.length) return 0
-  const f = await chrome.bookmarks.create({ parentId, title: node.title || '' })
+  const title = nameMap[node.title] || node.title || ''
+  const f = await chrome.bookmarks.create({ parentId, title })
   let count = 0
   for (let i = 0; i < node.children.length; i += 20) {
     const batch = node.children.slice(i, i + 20)

@@ -264,7 +264,7 @@ function simplifyNode(node) {
 }
 
 async function restoreFromGist() {
-  if (!confirm('This will restore bookmarks from your Gist into a new folder. Continue?')) return
+  if (!confirm('This will restore your exact bookmark structure from the Gist at the top level. Continue?')) return
 
   $('restoreBtn').disabled = true
   $('restoreBtn').textContent = 'Restoring...'
