@@ -1,6 +1,6 @@
 # GistMark
 
-**Backup and restore your Chrome bookmarks to a private GitHub Gist.**
+**Backup and restore your Browser bookmarks to a private GitHub Gist.**
 
 ![GistMark popup](screenshot/GistMark.png)
 
