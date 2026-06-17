@@ -1,6 +1,6 @@
 # GistMark
 
-**Backup and restore your Browser bookmarks to a private GitHub Gist.**
+**Backup and restore your Chrome/Firefox bookmarks to a private GitHub Gist.**
 
 ![GistMark popup](screenshot/GistMark.png)
 
@@ -14,16 +14,66 @@
 - **Cross-browser** — works on Chrome and Firefox 120+
 - **No build tools** — pure vanilla JavaScript, HTML, and CSS
 
+## Prerequisites
+
+- A **GitHub account**
+- A **classic GitHub personal access token** with **only `gist` scope** (no other permissions needed)
+
+### How to create your token
+
+1. Go to [GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)](https://github.com/settings/tokens)
+2. Click **Generate new token (classic)**
+3. Give it a name like `GistMark`
+4. Under **Scopes**, check only **`gist`** (create gists)
+5. Scroll down and click **Generate token**
+6. **Copy the token** — you'll paste it into the extension popup (GitHub only shows it once)
+
+> **Important:** Use a **classic** token, not a fine-grained token. Fine-grained tokens don't support the Gist API scope.
+
+## Installation
+
+### Download the extension
+
+1. Go to the [GistMark GitHub repo](https://github.com/Yesmohsen/GistMark)
+2. Click the green **Code** button → **Download ZIP**
+3. Unzip the downloaded file to a folder on your computer
+
+### Load in Chrome
+
+1. Open `chrome://extensions` in your browser
+2. Enable **Developer mode** (toggle in the top-right corner)
+3. Click **Load unpacked**
+4. Select the unzipped `GistMark` folder
+5. The GistMark icon will appear in your toolbar
+
+### Load in Firefox
+
+1. Open `about:debugging#/runtime/this-firefox` in your browser
+2. Click **Load Temporary Add-on**
+3. Select the `manifest.json` file inside the unzipped `GistMark` folder
+4. The GistMark icon will appear in your toolbar
+
+> **Note for Firefox:** The extension will only stay loaded until you close Firefox. For permanent installation, you'll need to [sign the extension on addons.mozilla.org](https://addons.mozilla.org/).
+
 ## How to use
 
-1. Get a [GitHub personal access token](https://github.com/settings/tokens) with the `gist` scope
-2. Load the extension:
-   - **Chrome**: `chrome://extensions` → Developer mode → "Load unpacked" → select this folder
-   - **Firefox**: `about:debugging#/runtime/this-firefox` → "Load Temporary Add-on" → select `manifest.json`
-3. Paste your token in the popup
-4. Click **Backup NOW** to upload your bookmarks
+### Backup your bookmarks
 
-To restore on another device, install the extension, paste your token, and click **Restore from Gist**.
+1. Click the GistMark icon in your toolbar to open the popup
+2. Paste your GitHub token into the **Gist Token** field (use the eye icon to toggle visibility)
+3. Click **Backup NOW**
+4. Done — your bookmarks are now saved to a private Gist!
+
+### Auto-backup
+
+Toggle **Auto Backup** on and your bookmarks will automatically sync to your Gist 15 seconds after any bookmark change (add, delete, rename, or move).
+
+### Restore on a new browser
+
+1. Install GistMark on the new browser (follow the Installation steps above)
+2. Paste your **same GitHub token** into the popup
+3. Click **Restore from Gist**
+4. Confirm — a folder named `GistMark Restore (MM-DD-YYYY)` will appear under **Other Bookmarks** with your full bookmark tree
 
 ## File structure
 
