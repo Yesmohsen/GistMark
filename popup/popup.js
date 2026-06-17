@@ -336,12 +336,12 @@ async function createCompact(node, parentId) {
   }
   if (!node.children || !node.children.length) return 0
   const f = await chrome.bookmarks.create({ parentId, title: node.title || '' })
-  const batchSize = 50
   let count = 0
-  for (let i = 0; i < node.children.length; i += batchSize) {
-    const batch = node.children.slice(i, i + batchSize)
+  for (let i = 0; i < node.children.length; i += 5) {
+    const batch = node.children.slice(i, i + 5)
     const results = await Promise.all(batch.map(c => createCompact(c, f.id)))
     count += results.reduce((a, b) => a + b, 0)
+    if (i % 100 === 0) await new Promise(r => setTimeout(r, 10))
   }
   return count
 }
