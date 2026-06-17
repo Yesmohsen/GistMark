@@ -322,22 +322,26 @@ async function restoreFromGist() {
 }
 
 async function createCompact(node, parentId) {
-  let count = 0
   if (node.url) {
     try {
       await chrome.bookmarks.create({ parentId, title: node.title || '', url: node.url })
-      count++
+      return 1
     } catch (e) {
       if (e.message.includes('URL_INVALID')) {
         await chrome.bookmarks.create({ parentId, title: node.title || '', url: 'https://example.com' })
-        count++
+        return 1
       }
+      return 0
     }
-  } else if (node.children) {
-    const f = await chrome.bookmarks.create({ parentId, title: node.title || '' })
-    for (const child of node.children) {
-      count += await createCompact(child, f.id)
-    }
+  }
+  if (!node.children || !node.children.length) return 0
+  const f = await chrome.bookmarks.create({ parentId, title: node.title || '' })
+  const batchSize = 50
+  let count = 0
+  for (let i = 0; i < node.children.length; i += batchSize) {
+    const batch = node.children.slice(i, i + batchSize)
+    const results = await Promise.all(batch.map(c => createCompact(c, f.id)))
+    count += results.reduce((a, b) => a + b, 0)
   }
   return count
 }
